@@ -1,0 +1,17 @@
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+video {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: 200px;
+  border: 2px solid white;
+}
+
+canvas {
+  width: 100vw;
+  height: 100vh;
+}
