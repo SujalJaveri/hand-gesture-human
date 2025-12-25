@@ -21,3 +21,11 @@ scene.add(ambientLight);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1);
 dirLight.position.set(5, 5, 5);
 scene.add(dirLight);
+let human;
+
+const loader = new THREE.OBJLoader();
+loader.load("models/human.obj", obj => {
+  human = obj;
+  human.scale.set(0.02, 0.02, 0.02); // OBJ models are huge
+  scene.add(human);
+});
