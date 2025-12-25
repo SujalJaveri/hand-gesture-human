@@ -10,8 +10,7 @@ renderer.setClearColor(0xffffff);
 let human;
 const loader = new THREE.OBJLoader();
 loader.load(
-  'human.obj',
-  (object) => {
+'./human.obj'  (object) => {
     human = object;
     human.scale.set(0.02, 0.02, 0.02);
     scene.add(human);
