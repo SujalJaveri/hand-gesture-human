@@ -66,13 +66,13 @@ hands.onResults((results) => {
         }
   });
 
-const camera = new Camera(video, {
+const handCamera = new Camera(video, {
     onFrame: async () => {
           await hands.send({image: video});
         },
     width: 1280,
     height: 720
       });
-camera.start();
+handCamera.start();
 
 console.log('Hand gesture detection initialized');
