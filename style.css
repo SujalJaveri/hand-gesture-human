@@ -8,6 +8,7 @@ body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  
   background-color: #ffffff;
 }
 
@@ -19,6 +20,7 @@ body {
   height: 100%;
   object-fit: cover;
   z-index: 1;
+  display: none;
 }
 
 #canvas {
