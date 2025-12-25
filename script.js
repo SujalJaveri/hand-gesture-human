@@ -32,3 +32,47 @@ function animate() {
 animate();
 
 console.log('Render loop started');
+
+// Hand gesture detection with MediaPipe
+const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+      });
+
+let lastHandX = 0;
+let lastHandY = 0;
+
+hands.onResults((results) => {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const landmarks = results.multiHandLandmarks[0];
+          const palmCenter = landmarks[9]; // Palm center landmark
+
+          // Normalize coordinates to screen space
+          const screenX = palmCenter.x * 2 - 1; // Convert to -1 to 1
+          const screenY = -(palmCenter.y * 2 - 1);
+
+          // Move the model based on hand position
+          model.position.x += (screenX - lastHandX) * 0.05;
+          model.position.y += (screenY - lastHandY) * 0.05;
+
+          lastHandX = screenX;
+          lastHandY = screenY;
+        }
+  });
+
+const camera = new Camera(video, {
+    onFrame: async () => {
+          await hands.send({image: video});
+        },
+    width: 1280,
+    height: 720
+      });
+camera.start();
+
+console.log('Hand gesture detection initialized');
