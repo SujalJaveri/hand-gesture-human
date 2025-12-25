@@ -23,16 +23,7 @@ camera.position.z = 5;
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
-let model = null;
-const loader = new THREE.OBJLoader();
-loader.load('human.obj', (object) => {
-  model = object;
-  model.scale.set(0.01, 0.01, 0.01);
-  scene.add(model);
-  console.log('Model loaded');
-}, undefined, (err) => {
-  console.error('Model error:', err);
-});
+let model = new THREE.Group();const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshStandardMaterial({ color: 0xffa500 }));head.position.y = 2;model.add(head);const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0x0000ff }));body.position.y = 0.7;model.add(body);const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xffa500 }));leftArm.rotation.z = Math.PI / 2;leftArm.position.set(-0.8, 1, 0);model.add(leftArm);const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xffa500 }));rightArm.rotation.z = Math.PI / 2;rightArm.position.set(0.8, 1, 0);model.add(rightArm);const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 32), new THREE.MeshStandardMaterial({ color: 0x000000 }));leftLeg.position.set(-0.2, -1.2, 0);model.add(leftLeg);const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 32), new THREE.MeshStandardMaterial({ color: 0x000000 }));rightLeg.position.set(0.2, -1.2, 0);model.add(rightLeg);scene.add(model);console.log('3D Human model created');
 
 function animate() {
   requestAnimationFrame(animate);
