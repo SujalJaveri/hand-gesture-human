@@ -1,18 +1,17 @@
-const video = document.getElementById("video");
+let human;
 
-// Camera access
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then(stream => video.srcObject = stream);
-
-// MediaPipe Hands
-const hands = new Hands({
-  locateFile: file =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-});
-
-hands.setOptions({
-  maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
-});
+const loader = new THREE.OBJLoader();
+loader.load(
+  "models/human.obj",
+  object => {
+    human = object;
+    human.scale.set(0.02, 0.02, 0.02); // OBJ models are usually HUGE
+    scene.add(human);
+  },
+  xhr => {
+    console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+  },
+  error => {
+    console.error("OBJ load error", error);
+  }
+);
