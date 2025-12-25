@@ -29,3 +29,9 @@ loader.load("models/human.obj", obj => {
   human.scale.set(0.02, 0.02, 0.02); // OBJ models are huge
   scene.add(human);
 });
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 5, 5);
+scene.add(light);
+
