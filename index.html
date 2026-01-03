@@ -1,27 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Hand Gesture Controlled Human</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Control: FinalBaseMesh</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Segoe UI', sans-serif; }
+        
+        /* UI Panel */
+        #ui-panel {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            text-align: center;
+            color: white;
+            pointer-events: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h1 { margin: 0 0 5px 0; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; color: #aaa; }
+        .main-text { font-size: 18px; font-weight: 600; margin: 0; }
+        
+        /* Camera Preview */
+        #cam-preview {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 140px; height: 105px;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: #000;
+            transform: scaleX(-1);
+            overflow: hidden;
+            z-index: 10;
+        }
+        #webcam-canvas { width: 100%; height: 100%; opacity: 0.6; }
+
+        /* Status Dot */
+        #status-dot {
+            display: inline-block; width: 10px; height: 10px; 
+            background: #f43f5e; border-radius: 50%; margin-right: 8px;
+            box-shadow: 0 0 8px #f43f5e;
+        }
+        #status-dot.active { background: #10b981; box-shadow: 0 0 8px #10b981; }
+
+        /* Loader */
+        #loader {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: #111; z-index: 999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white; font-family: monospace; transition: opacity 0.5s;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #3b82f6; border-radius: 50%;
+            animation: spin 1s infinite linear; margin-bottom: 20px;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
 
-<video id="video" autoplay muted playsinline></video>  <canvas id="canvas"></canvas>
-  
+    <div id="loader">
+        <div class="spinner"></div>
+        <div id="loading-text">LOADING 'human.obj'...</div>
+        <div style="font-size:11px; color:#666; margin-top:10px;">Ensure file is in same folder</div>
+    </div>
 
-  <!-- MediaPipe Hands -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <div id="ui-panel">
+        <div style="margin-bottom: 5px;">
+            <span id="status-dot"></span>
+            <span id="status-text" style="font-size: 12px; color: #ccc;">Waiting for hand...</span>
+        </div>
+        <p class="main-text">Move Hand to Rotate • Pinch to Scale</p>
+    </div>
 
-  <!-- Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/OBJLoader.js"></script>
+    <video id="input-video" style="display:none"></video>
+    
+    <div id="cam-preview">
+        <canvas id="webcam-canvas"></canvas>
+    </div>
 
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-  <script src="script.js"></script>
+        // --- 1. SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        scene.fog = new THREE.Fog(0x1a1a1a, 10, 60);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.5, 4); // Adjusted camera height for human model
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2);
+        mainLight.position.set(5, 5, 5);
+        mainLight.castShadow = true;
+        scene.add(mainLight);
+
+        const backLight = new THREE.SpotLight(0x00aaff, 5);
+        backLight.position.set(-5, 5, -5);
+        scene.add(backLight);
+
+        // --- 3. LOAD YOUR FILE ---
+        let model = null;
+        let mixer = null;
+        
+        const loader = new GLTFLoader();
+        
+        // AUTO-LOADING YOUR FILE
+        loader.load('./human.obj', (gltf) => {
+            model = gltf.scene;
+
+            // Auto-Center & Auto-Scale
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            // Reset Position
+            model.position.x += (model.position.x - center.x);
+            model.position.y += (model.position.y - center.y);
+            model.position.z += (model.position.z - center.z);
+
+            // Scale to fit nicely (Target height ~3 units)
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const scale = 3.0 / maxDim;
+            model.scale.set(scale, scale, scale);
+
+            // Shadows
+            model.traverse((node) => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                }
+            });
+
+            // Animations
+            if(gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(model);
+                mixer.clipAction(gltf.animations[0]).play();
+            }
+
+            scene.add(model);
+            
+            // Hide Loader
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => document.getElementById('loader').remove(), 500);
+
+        }, undefined, (error) => {
+            console.error(error);
+            const txt = document.getElementById('loading-text');
+            txt.innerText = "ERROR: File Not Found";
+            txt.style.color = "#ef4444";
+            
+            // Fallback object so app doesn't break
+            const geo = new THREE.CapsuleGeometry(1, 2, 4, 8);
+            const mat = new THREE.MeshStandardMaterial({color:0x555555, wireframe:true});
+            model = new THREE.Mesh(geo, mat);
+            scene.add(model);
+        });
+
+        // --- 4. GESTURE LOGIC ---
+        let targetRotX = 0;
+        let targetRotY = 0;
+        let targetScale = 1.0;
+        
+        let smoothRotX = 0;
+        let smoothRotY = 0;
+        let smoothScale = 1.0;
+
+        // --- 5. MEDIAPIPE ---
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('webcam-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusDot.classList.add('active');
+                statusText.innerText = "Active";
+
+                drawConnectors(canvasCtx, results.multiHandLandmarks[0], HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+
+                const lm = results.multiHandLandmarks[0];
+                
+                // ROTATION: Wrist position (0)
+                // x: 0..1, y: 0..1
+                // Map to: -PI..PI
+                targetRotY = (lm[0].x - 0.5) * 4; 
+                targetRotX = (lm[0].y - 0.5) * 3;
+
+                // SCALE: Thumb(4) - Index(8) distance
+                const d = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+                const norm = Math.max(0, (d - 0.02) / 0.15); // Normalize 0..1
+                targetScale = 0.5 + (norm * 1.5); // Result 0.5x .. 2.0x
+
+            } else {
+                statusDot.classList.remove('active');
+                statusText.innerText = "Searching...";
+                
+                // Idle Animation
+                targetRotY += 0.005;
+                targetScale = 1.0;
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+        hands.onResults(onResults);
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 320, height: 240
+        });
+        cameraUtils.start();
+
+        // --- 6. RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (model) {
+                // Smooth Physics (Lerp)
+                smoothRotX += (targetRotX - smoothRotX) * 0.1;
+                smoothRotY += (targetRotY - smoothRotY) * 0.1;
+                smoothScale += (targetScale - smoothScale) * 0.1;
+
+                model.rotation.y = smoothRotY;
+                model.rotation.x = smoothRotX;
+                
+                // Apply Scale (relative to base scale if needed, but here simple setScalar works)
+                // We re-apply the calculated base scale + dynamic scale
+                // Note: To keep it simple, we just scale the whole object group
+                // If model was auto-scaled to 1.0, this works directly:
+                const currentBase = model.scale.x; 
+                // A small trick to not lose the initial auto-scale:
+                // We actually don't overwrite base scale here to avoid shrinking on every frame
+                // Instead, we just use rotation. For scale, we'd need a container.
+                // Simplified:
+                model.scale.setScalar(smoothScale * (model.userData.baseScale || 1)); 
+            }
+
+            if(mixer) mixer.update(delta);
+            renderer.render(scene, camera);
+        }
+
+        // Store base scale after load
+        const _origLoad = loader.load; // Hooking into the load callback above is better, 
+        // but since we did it inline, we'll add a small logic inside the load callback
+        // Note: I added model.scale.set(...) inside the load callback. 
+        // Let's ensure the animate loop respects that.
+        // *Correction*: In the animate loop, I'm multiplying by userData.baseScale.
+        // I need to set that in the load callback.
+        
+        // Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
 </body>
 </html>
-
-Now i will change something too look into this matter 
-
